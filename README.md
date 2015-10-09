@@ -23,7 +23,7 @@ Installation
 
 Installation is only necessary for the forwarding strategies. First,
 copy contents of the directory of the strategies you wish to use into
-`/<path-to-NFD/NFD/daemon/fw/`. Recompile NFD as normal.
+`/<path-to-NFD>/NFD/daemon/fw/`. Recompile NFD as normal.
 
 To activate the strategies at runtime, use the `nfdc` tool (shipped
 with NFD). The command `nfdc set-strategy /foo/bar /strategy/name`
