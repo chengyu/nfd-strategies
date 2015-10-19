@@ -312,15 +312,23 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
   NFD_LOG_DEBUG("selected value: " << selection);
 
   auto faceEntry = facesById.begin();
+  uint64_t firstMatchIndex = INVALID_FACEID;
+  auto firstMatchFaceEntry = facesById.end();
   for (uint64_t i = 0; i < facesById.size() - 1; i++)
     {
-      if (faceIds[i] <= selection && selection < faceIds[i + 1] &&
-          pitEntry->canForwardTo(faceEntry->face))
+      if (faceIds[i] <= selection && selection < faceIds[i + 1])
         {
-          NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
-          return faceEntry->face.shared_from_this();
+          if(pitEntry->canForwardTo(faceEntry->face))
+            {
+              NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
+              return faceEntry->face.shared_from_this();
+            }
+          else if (i < firstMatchIndex)
+            {
+              firstMatchIndex = i;
+              firstMatchFaceEntry = faceEntry;
+            }
         }
-
       ++faceEntry;
     }
 
@@ -328,6 +336,20 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
     {
       NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
       return faceEntry->face.shared_from_this();
+    }
+  else
+    {
+      // wrap around and try faces up to, but not including, first match
+      faceEntry = facesById.begin();
+      for (uint64_t i = 0; i < firstMatchIndex; i++)
+        {
+          if (pitEntry->canForwardTo(faceEntry->face))
+            {
+              NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
+              return faceEntry->face.shared_from_this();
+            }
+          ++faceEntry;
+        }
     }
 
   NFD_LOG_WARN("no face selected for forwarding");
