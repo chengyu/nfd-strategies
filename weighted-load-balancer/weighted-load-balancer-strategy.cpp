@@ -337,7 +337,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
       NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
       return faceEntry->face.shared_from_this();
     }
-  else
+  else if (firstMatchIndex != static_cast<uint64_t>(INVALID_FACEID))
     {
       // wrap around and try faces up to, but not including, first match
       faceEntry = facesById.begin();
