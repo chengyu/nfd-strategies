@@ -54,7 +54,7 @@ class WeightedFace
 {
 public:
 
-  WeightedFace(Face& face_,
+  WeightedFace(shared_ptr<Face> face_,
                const milliseconds& delay = milliseconds(0))
     : face(face_)
     , lastDelay(delay)
@@ -66,7 +66,7 @@ public:
   operator<(const WeightedFace& other) const
   {
     if (lastDelay == other.lastDelay)
-      return face.getId() < other.face.getId();
+      return face->getId() < other.face->getId();
 
     return lastDelay < other.lastDelay;
   }
@@ -74,7 +74,7 @@ public:
   FaceId
   getId() const
   {
-    return face.getId();
+    return face->getId();
   }
 
   static void
@@ -91,7 +91,7 @@ public:
     weight = (1.0 * (milliseconds::max() - lastDelay)) / milliseconds::max();
   }
 
-  Face& face;
+  shared_ptr<Face> face;
   ndn::time::milliseconds lastDelay;
   double weight;
 };
@@ -121,6 +121,7 @@ class MyMeasurementInfo : public StrategyInfo
 {
 public:
 
+  MyMeasurementInfo() : weightedFaces(new WeightedFaceSet) {}
   void
   updateFaceDelay(const Face& face, const milliseconds& delay);
 
@@ -152,8 +153,7 @@ public:
   typedef WeightedFaceSet::index<ByDelay>::type WeightedFaceSetByDelay;
   typedef WeightedFaceSet::index<ByFaceId>::type WeightedFaceSetByFaceId;
 
-  //Collection of Faces sorted by delay
-  WeightedFaceSet weightedFaces;
+  unique_ptr<WeightedFaceSet> weightedFaces;
 
 private:
   NFD_LOG_INCLASS_DECLARE();
@@ -287,7 +287,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
                                                  shared_ptr<pit::Entry>& pitEntry)
 {
   auto& facesById =
-    measurementsEntryInfo->weightedFaces.get<MyMeasurementInfo::ByFaceId>();
+    measurementsEntryInfo->weightedFaces->get<MyMeasurementInfo::ByFaceId>();
 
   std::vector<uint64_t> faceIds;
   std::vector<double> weights;
@@ -297,7 +297,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
 
   for (auto faceWeight : facesById)
     {
-      faceIds.push_back(faceWeight.face.getId());
+      faceIds.push_back(faceWeight.face->getId());
       weights.push_back(faceWeight.weight);
     }
 
@@ -318,10 +318,10 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
     {
       if (faceIds[i] <= selection && selection < faceIds[i + 1])
         {
-          if(pitEntry->canForwardTo(faceEntry->face))
+          if(pitEntry->canForwardTo(*faceEntry->face))
             {
-              NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
-              return faceEntry->face.shared_from_this();
+              NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
+              return faceEntry->face->shared_from_this();
             }
           else if (i < firstMatchIndex)
             {
@@ -332,10 +332,10 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
       ++faceEntry;
     }
 
-  if (faceEntry != facesById.end() && pitEntry->canForwardTo(faceEntry->face))
+  if (faceEntry != facesById.end() && pitEntry->canForwardTo(*faceEntry->face))
     {
-      NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
-      return faceEntry->face.shared_from_this();
+      NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
+      return faceEntry->face->shared_from_this();
     }
   else if (firstMatchIndex != static_cast<uint64_t>(INVALID_FACEID))
     {
@@ -343,10 +343,10 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
       faceEntry = facesById.begin();
       for (uint64_t i = 0; i < firstMatchIndex; i++)
         {
-          if (pitEntry->canForwardTo(faceEntry->face))
+          if (pitEntry->canForwardTo(*faceEntry->face))
             {
-              NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
-              return faceEntry->face.shared_from_this();
+              NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
+              return faceEntry->face->shared_from_this();
             }
           ++faceEntry;
         }
@@ -423,7 +423,7 @@ WeightedLoadBalancerStrategy::demoteFace(shared_ptr<pit::Entry> pitEntry)
 void
 MyMeasurementInfo::updateFaceDelay(const Face& face, const milliseconds& delay)
 {
-  auto& facesById = weightedFaces.get<MyMeasurementInfo::ByFaceId>();
+  auto& facesById = weightedFaces->get<MyMeasurementInfo::ByFaceId>();
   auto faceEntry = facesById.find(face.getId());
 
   if (faceEntry != facesById.end())
@@ -446,34 +446,25 @@ MyMeasurementInfo::updateFaceDelay(const Face& face, const milliseconds& delay)
 void
 MyMeasurementInfo::updateStoredNextHops(const fib::NextHopList& nexthops)
 {
-  auto& facesById = weightedFaces.get<MyMeasurementInfo::ByFaceId>();
+  auto updatedFaceSet = new MyMeasurementInfo::WeightedFaceSet;
+  auto& facesById = weightedFaces->get<MyMeasurementInfo::ByFaceId>();
+  auto& updatedFacesById = updatedFaceSet->get<MyMeasurementInfo::ByFaceId>();
 
-  std::set<FaceId> nexthopFaceIds;
-
-  for (auto i : nexthops)
+  for (auto& hop : nexthops)
     {
-      auto face = i.getFace();
-      const auto id = face->getId();
-      if (facesById.find(id) == facesById.end())
+      auto& face = hop.getFace();
+      auto weightedIt = facesById.find(face->getId());
+      if (weightedIt == facesById.end())
         {
-          // new nexthop, add to set
-          facesById.insert(WeightedFace(*face));
-
-          NFD_LOG_TRACE("added FaceId: " << id);
+          updatedFacesById.insert(*weightedIt);
         }
-      nexthopFaceIds.insert(id);
-    }
-
-  for (auto i = facesById.cbegin();
-       i != facesById.cend();
-       ++i)
-    {
-      if (nexthopFaceIds.find(i->getId()) == nexthopFaceIds.end())
+      else
         {
-          NFD_LOG_TRACE("pruning FaceId: " << i->getId());
-          facesById.erase(i);
+          updatedFacesById.insert(WeightedFace(face));
         }
     }
+
+  weightedFaces.reset(updatedFaceSet);
 }
 
 } // namespace fw
