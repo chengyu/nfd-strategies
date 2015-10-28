@@ -464,15 +464,17 @@ MyMeasurementInfo::updateStoredNextHops(const fib::NextHopList& nexthops)
 
   for (auto& hop : nexthops)
     {
+      BOOST_ASSERT(hop.getFace() != nullptr);
       auto& face = hop.getFace();
+
       auto weightedIt = facesById.find(face->getId());
       if (weightedIt == facesById.end())
         {
-          updatedFacesById.insert(*weightedIt);
+          updatedFacesById.insert(WeightedFace(face));
         }
       else
         {
-          updatedFacesById.insert(WeightedFace(face));
+          updatedFacesById.insert(*weightedIt);
         }
     }
 
