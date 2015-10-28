@@ -63,7 +63,8 @@ public:
 protected:
 
   shared_ptr<Face>
-  selectOutgoingFace(const Interest& interest,
+  selectOutgoingFace(const Face& inFace,
+                     const Interest& interest,
                      shared_ptr<MyMeasurementInfo>& measurementsEntryInfo,
                      shared_ptr<pit::Entry>& pitEntry);
 

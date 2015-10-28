@@ -206,7 +206,8 @@ WeightedLoadBalancerStrategy::afterReceiveInterest(const Face& inFace,
   // on our custom measurement entry info
   measurementsEntryInfo->updateStoredNextHops(fibEntry->getNextHops());
 
-  auto selectedFace = selectOutgoingFace(interest,
+  auto selectedFace = selectOutgoingFace(inFace,
+                                         interest,
                                          measurementsEntryInfo,
                                          pitEntry);
 
@@ -281,8 +282,18 @@ WeightedLoadBalancerStrategy::beforeExpirePendingInterest(shared_ptr<pit::Entry>
 // Strategy Helper Methods //
 /////////////////////////////
 
+static inline bool
+isEligibleFace(const shared_ptr<pit::Entry>& pitEntry,
+               const Face& downstream,
+               const Face& upstream)
+{
+  return downstream.getId() != upstream.getId() &&
+    !pitEntry->violatesScope(upstream);
+}
+
 shared_ptr<Face>
-WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
+WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
+                                                 const Interest& interest,
                                                  shared_ptr<MyMeasurementInfo>& measurementsEntryInfo,
                                                  shared_ptr<pit::Entry>& pitEntry)
 {
@@ -318,7 +329,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
     {
       if (faceIds[i] <= selection && selection < faceIds[i + 1])
         {
-          if(pitEntry->canForwardTo(*faceEntry->face))
+          if (isEligibleFace(pitEntry, inFace, *faceEntry->face))
             {
               NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
               return faceEntry->face->shared_from_this();
@@ -332,7 +343,8 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
       ++faceEntry;
     }
 
-  if (faceEntry != facesById.end() && pitEntry->canForwardTo(*faceEntry->face))
+  if (faceEntry != facesById.end() &&
+      isEligibleFace(pitEntry, inFace, *faceEntry->face))
     {
       NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
       return faceEntry->face->shared_from_this();
@@ -343,7 +355,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Interest& interest,
       faceEntry = facesById.begin();
       for (uint64_t i = 0; i < firstMatchIndex; i++)
         {
-          if (pitEntry->canForwardTo(*faceEntry->face))
+          if (isEligibleFace(pitEntry, inFace, *faceEntry->face))
             {
               NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
               return faceEntry->face->shared_from_this();
