@@ -419,6 +419,7 @@ WeightedLoadBalancerStrategy::demoteFace(shared_ptr<pit::Entry> pitEntry)
 
       if (measurementsEntryInfo != nullptr)
         {
+          accessor.extendLifetime(*measurementsEntry, seconds(16));
           for (auto& entry : pitEntry->getOutRecords())
             {
               measurementsEntryInfo->updateFaceDelay(*(entry.getFace()),
