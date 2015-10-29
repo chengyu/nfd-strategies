@@ -24,6 +24,7 @@
  */
 
 #include <random>
+#include <algorithm>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/ordered_index.hpp>
@@ -214,7 +215,7 @@ WeightedLoadBalancerStrategy::afterReceiveInterest(const Face& inFace,
   if (selectedFace == nullptr)
     {
       rejectPendingInterest(pitEntry);
-      BOOST_ASSERT(false);
+      return;
     }
 
   sendInterest(pitEntry, selectedFace);
@@ -349,20 +350,21 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
       NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
       return faceEntry->face->shared_from_this();
     }
-  else if (firstMatchIndex != static_cast<uint64_t>(INVALID_FACEID))
+
+
+  // wrap around and try faces up to, but not including, first match
+  faceEntry = facesById.begin();
+  const auto limit = std::min(firstMatchIndex, static_cast<uint64_t>(facesById.size()));
+  for (uint64_t i = 0; i < limit; i++)
     {
-      // wrap around and try faces up to, but not including, first match
-      faceEntry = facesById.begin();
-      for (uint64_t i = 0; i < firstMatchIndex; i++)
+      if (isEligibleFace(pitEntry, inFace, *faceEntry->face))
         {
-          if (isEligibleFace(pitEntry, inFace, *faceEntry->face))
-            {
-              NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
-              return faceEntry->face->shared_from_this();
-            }
-          ++faceEntry;
+          NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
+          return faceEntry->face->shared_from_this();
         }
+      ++faceEntry;
     }
+
 
   NFD_LOG_WARN("no face selected for forwarding");
   return nullptr;
