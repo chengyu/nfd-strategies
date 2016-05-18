@@ -1,12 +1,13 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2014,  Regents of the University of California,
- *                      Arizona Board of Regents,
- *                      Colorado State University,
- *                      University Pierre & Marie Curie, Sorbonne University,
- *                      Washington University in St. Louis,
- *                      Beijing Institute of Technology,
- *                      The University of Memphis
+ * Copyright (c) 2014-2016,  Regents of the University of California,
+ *                           Arizona Board of Regents,
+ *                           Colorado State University,
+ *                           University Pierre & Marie Curie, Sorbonne University,
+ *                           Washington University in St. Louis,
+ *                           Beijing Institute of Technology,
+ *                           The University of Memphis
+ *                           Google Inc.
  *
  * This file is part of NFD (Named Data Networking Forwarding Daemon).
  * See AUTHORS.md for complete list of NFD authors and contributors.
@@ -26,11 +27,11 @@
 
 #include "random-load-balancer-strategy.hpp"
 
-#include <boost/random/uniform_int_distribution.hpp>
+#include <core/logger.hpp>
 
 #include <ndn-cxx/util/random.hpp>
 
-#include <core/logger.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
 
 NFD_LOG_INIT("RandomLoadBalancerStrategy");
 

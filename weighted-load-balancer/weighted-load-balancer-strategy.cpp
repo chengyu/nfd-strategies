@@ -1,12 +1,13 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2014,  Regents of the University of California,
- *                      Arizona Board of Regents,
- *                      Colorado State University,
- *                      University Pierre & Marie Curie, Sorbonne University,
- *                      Washington University in St. Louis,
- *                      Beijing Institute of Technology,
- *                      The University of Memphis
+ * Copyright (c) 2014-2016,  Regents of the University of California,
+ *                           Arizona Board of Regents,
+ *                           Colorado State University,
+ *                           University Pierre & Marie Curie, Sorbonne University,
+ *                           Washington University in St. Louis,
+ *                           Beijing Institute of Technology,
+ *                           The University of Memphis
+ *                           Google Inc.
  *
  * This file is part of NFD (Named Data Networking Forwarding Daemon).
  * See AUTHORS.md for complete list of NFD authors and contributors.
@@ -23,8 +24,11 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <random>
+#include "weighted-load-balancer-strategy.hpp"
+
 #include <algorithm>
+
+#include <ndn-cxx/util/time.hpp>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/ordered_index.hpp>
@@ -33,10 +37,6 @@
 #include <boost/multi_index/mem_fun.hpp>
 
 #include <boost/chrono/system_clocks.hpp>
-
-#include <ndn-cxx/util/time.hpp>
-
-#include "weighted-load-balancer-strategy.hpp"
 
 #include "core/logger.hpp"
 #include "table/measurements-entry.hpp"
@@ -301,7 +301,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
   auto& facesById =
     measurementsEntryInfo->weightedFaces->get<MyMeasurementInfo::ByFaceId>();
 
-  std::vector<uint64_t> faceIds;
+  std::vector<FaceId> faceIds;
   std::vector<double> weights;
 
   faceIds.reserve(facesById.size() + 1);
@@ -313,7 +313,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
       weights.push_back(faceWeight.weight);
     }
 
-  faceIds.push_back(INVALID_FACEID);
+  faceIds.push_back(std::numeric_limits<uint64_t>::max());
 
   std::piecewise_constant_distribution<> dist(faceIds.begin(),
                                               faceIds.end(),
@@ -324,9 +324,9 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
   NFD_LOG_DEBUG("selected value: " << selection);
 
   auto faceEntry = facesById.begin();
-  uint64_t firstMatchIndex = INVALID_FACEID;
+  auto firstMatchIndex = std::numeric_limits<uint64_t>::max();
   auto firstMatchFaceEntry = facesById.end();
-  for (uint64_t i = 0; i < facesById.size() - 1; i++)
+  for (FaceId i = 0; i < facesById.size() - 1; i++)
     {
       if (faceIds[i] <= selection && selection < faceIds[i + 1])
         {
