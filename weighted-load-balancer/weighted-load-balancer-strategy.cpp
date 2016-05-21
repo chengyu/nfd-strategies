@@ -72,7 +72,7 @@ public:
     return lastDelay < other.lastDelay;
   }
 
-  FaceId
+  uint64_t
   getId() const
   {
     return face->getId();
@@ -146,7 +146,7 @@ public:
         >,
       hashed_unique<
         tag<ByFaceId>,
-        const_mem_fun<WeightedFace, FaceId, &WeightedFace::getId>
+        const_mem_fun<WeightedFace, uint64_t, &WeightedFace::getId>
         >
       >
     > WeightedFaceSet;
@@ -155,12 +155,7 @@ public:
   typedef WeightedFaceSet::index<ByFaceId>::type WeightedFaceSetByFaceId;
 
   unique_ptr<WeightedFaceSet> weightedFaces;
-
-private:
-  NFD_LOG_INCLASS_DECLARE();
 };
-
-NFD_LOG_INCLASS_DEFINE(MyMeasurementInfo, "MyMeasurementInfo");
 
 /////////////////////////////
 // Strategy Implementation //
@@ -301,7 +296,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
   auto& facesById =
     measurementsEntryInfo->weightedFaces->get<MyMeasurementInfo::ByFaceId>();
 
-  std::vector<FaceId> faceIds;
+  std::vector<uint64_t> faceIds;
   std::vector<double> weights;
 
   faceIds.reserve(facesById.size() + 1);
@@ -326,7 +321,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
   auto faceEntry = facesById.begin();
   auto firstMatchIndex = std::numeric_limits<uint64_t>::max();
   auto firstMatchFaceEntry = facesById.end();
-  for (FaceId i = 0; i < facesById.size() - 1; i++)
+  for (uint64_t i = 0; i < facesById.size() - 1; i++)
     {
       if (faceIds[i] <= selection && selection < faceIds[i + 1])
         {
@@ -443,10 +438,6 @@ MyMeasurementInfo::updateFaceDelay(const Face& face, const milliseconds& delay)
 
   if (faceEntry != facesById.end())
     {
-      // NFD_LOG_TRACE("Recording delay of " << delay.count()
-      //               << "ms (diff: " << (delay - faceEntry->lastDelay).count()
-      //               << "ms) for FaceId: " << inFace.getId());
-
       auto oldWeight = faceEntry->weight;
       auto result = facesById.modify(faceEntry,
                                      bind(&WeightedFace::modifyWeightedFaceDelay,
