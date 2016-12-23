@@ -51,16 +51,15 @@ public:
   void
   afterReceiveInterest(const Face& inFace,
                        const Interest& interest,
-                       shared_ptr<fib::Entry> fibEntry,
-                       shared_ptr<pit::Entry> pitEntry) override;
+                       const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  beforeSatisfyInterest(shared_ptr<pit::Entry> pitEntry,
+  beforeSatisfyInterest(const shared_ptr<pit::Entry>& pitEntry,
                         const Face& inFace,
                         const Data& data) override;
 
   void
-  beforeExpirePendingInterest(shared_ptr<pit::Entry> pitEntry) override;
+  beforeExpirePendingInterest(const shared_ptr<pit::Entry>& pitEntry) override;
 
 
 protected:
@@ -68,14 +67,15 @@ protected:
   shared_ptr<Face>
   selectOutgoingFace(const Face& inFace,
                      const Interest& interest,
-                     shared_ptr<MyMeasurementInfo>& measurementsEntryInfo,
-                     shared_ptr<pit::Entry>& pitEntry);
+                     const MyMeasurementInfo& measurementsEntryInfo,
+                     const shared_ptr<pit::Entry>& pitEntry);
 
-  shared_ptr<MyPitInfo>
+  //shared_ptr<MyPitInfo>
+  MyPitInfo*
   myGetOrCreateMyPitInfo(const shared_ptr<pit::Entry>& entry);
 
-  shared_ptr<MyMeasurementInfo>
-  myGetOrCreateMyMeasurementInfo(const shared_ptr<fib::Entry>& entry);
+  MyMeasurementInfo*
+  myGetOrCreateMyMeasurementInfo(const fib::Entry& entry);
 
   void
   demoteFace(shared_ptr<pit::Entry> pitEntry);

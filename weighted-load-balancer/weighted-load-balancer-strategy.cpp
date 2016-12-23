@@ -55,7 +55,7 @@ class WeightedFace
 {
 public:
 
-  WeightedFace(shared_ptr<Face> face_,
+  WeightedFace(Face& face_,
                const milliseconds& delay = milliseconds(0))
     : face(face_)
     , lastDelay(delay)
@@ -67,7 +67,7 @@ public:
   operator<(const WeightedFace& other) const
   {
     if (lastDelay == other.lastDelay)
-      return face->getId() < other.face->getId();
+      return face.getId() < other.face.getId();
 
     return lastDelay < other.lastDelay;
   }
@@ -75,7 +75,7 @@ public:
   uint64_t
   getId() const
   {
-    return face->getId();
+    return face.getId();
   }
 
   static void
@@ -92,7 +92,7 @@ public:
     weight = (1.0 * (milliseconds::max() - lastDelay)) / milliseconds::max();
   }
 
-  shared_ptr<Face> face;
+  Face& face;
   ndn::time::milliseconds lastDelay;
   double weight;
 };
@@ -123,6 +123,7 @@ class MyMeasurementInfo : public StrategyInfo
 public:
 
   MyMeasurementInfo() : weightedFaces(new WeightedFaceSet) {}
+
   void
   updateFaceDelay(const Face& face, const milliseconds& delay);
 
@@ -179,8 +180,7 @@ WeightedLoadBalancerStrategy::~WeightedLoadBalancerStrategy()
 void
 WeightedLoadBalancerStrategy::afterReceiveInterest(const Face& inFace,
                                                    const Interest& interest,
-                                                   shared_ptr<fib::Entry> fibEntry,
-                                                   shared_ptr<pit::Entry> pitEntry)
+                                                   const shared_ptr<pit::Entry>& pitEntry)
 {
   NFD_LOG_TRACE("Received Interest: " << interest.getName());
 
@@ -196,15 +196,17 @@ WeightedLoadBalancerStrategy::afterReceiveInterest(const Face& inFace,
 
   // create timer information and attach to PIT entry
   auto pitEntryInfo = myGetOrCreateMyPitInfo(pitEntry);
+  //auto fibEntry = lookupFib(pitEntry.get());
+  const fib::Entry& fibEntry = this->lookupFib(*pitEntry);
   auto measurementsEntryInfo = myGetOrCreateMyMeasurementInfo(fibEntry);
 
   // reconcile differences between incoming nexthops and those stored
   // on our custom measurement entry info
-  measurementsEntryInfo->updateStoredNextHops(fibEntry->getNextHops());
+  measurementsEntryInfo->updateStoredNextHops(fibEntry.getNextHops());
 
   auto selectedFace = selectOutgoingFace(inFace,
                                          interest,
-                                         measurementsEntryInfo,
+                                         *measurementsEntryInfo,
                                          pitEntry);
 
   if (selectedFace == nullptr)
@@ -213,12 +215,12 @@ WeightedLoadBalancerStrategy::afterReceiveInterest(const Face& inFace,
       return;
     }
 
-  sendInterest(pitEntry, selectedFace);
+  sendInterest(pitEntry, *selectedFace);
 }
 
 
 void
-WeightedLoadBalancerStrategy::beforeSatisfyInterest(shared_ptr<pit::Entry> pitEntry,
+WeightedLoadBalancerStrategy::beforeSatisfyInterest(const shared_ptr<pit::Entry>& pitEntry,
                                                     const Face& inFace,
                                                     const Data& data)
 {
@@ -268,7 +270,7 @@ WeightedLoadBalancerStrategy::beforeSatisfyInterest(shared_ptr<pit::Entry> pitEn
 
 
 void
-WeightedLoadBalancerStrategy::beforeExpirePendingInterest(shared_ptr<pit::Entry> pitEntry)
+WeightedLoadBalancerStrategy::beforeExpirePendingInterest(const shared_ptr<pit::Entry>& pitEntry)
 {
   demoteFace(pitEntry);
 }
@@ -283,18 +285,18 @@ isEligibleFace(const shared_ptr<pit::Entry>& pitEntry,
                const Face& downstream,
                const Face& upstream)
 {
-  return downstream.getId() != upstream.getId() &&
-    !pitEntry->violatesScope(upstream);
+  return downstream.getId() != upstream.getId(); //&&
+    //!pitEntry->violatesScope(upstream);
 }
 
 shared_ptr<Face>
 WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
                                                  const Interest& interest,
-                                                 shared_ptr<MyMeasurementInfo>& measurementsEntryInfo,
-                                                 shared_ptr<pit::Entry>& pitEntry)
+                                                 const MyMeasurementInfo& measurementsEntryInfo,
+                                                 const shared_ptr<pit::Entry>& pitEntry)
 {
   auto& facesById =
-    measurementsEntryInfo->weightedFaces->get<MyMeasurementInfo::ByFaceId>();
+    measurementsEntryInfo.weightedFaces->get<MyMeasurementInfo::ByFaceId>();
 
   std::vector<uint64_t> faceIds;
   std::vector<double> weights;
@@ -304,7 +306,7 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
 
   for (auto faceWeight : facesById)
     {
-      faceIds.push_back(faceWeight.face->getId());
+      faceIds.push_back(faceWeight.face.getId());
       weights.push_back(faceWeight.weight);
     }
 
@@ -325,10 +327,10 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
     {
       if (faceIds[i] <= selection && selection < faceIds[i + 1])
         {
-          if (isEligibleFace(pitEntry, inFace, *faceEntry->face))
+          if (isEligibleFace(pitEntry, inFace, faceEntry->face))
             {
-              NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
-              return faceEntry->face->shared_from_this();
+              NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
+              return faceEntry->face.shared_from_this();
             }
           else if (i < firstMatchIndex)
             {
@@ -340,10 +342,10 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
     }
 
   if (faceEntry != facesById.end() &&
-      isEligibleFace(pitEntry, inFace, *faceEntry->face))
+      isEligibleFace(pitEntry, inFace, faceEntry->face))
     {
-      NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
-      return faceEntry->face->shared_from_this();
+      NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
+      return faceEntry->face.shared_from_this();
     }
 
 
@@ -352,10 +354,10 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
   const auto limit = std::min(firstMatchIndex, static_cast<uint64_t>(facesById.size()));
   for (uint64_t i = 0; i < limit; i++)
     {
-      if (isEligibleFace(pitEntry, inFace, *faceEntry->face))
+      if (isEligibleFace(pitEntry, inFace, faceEntry->face))
         {
-          NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face->getId());
-          return faceEntry->face->shared_from_this();
+          NFD_LOG_DEBUG("selected FaceID: " << faceEntry->face.getId());
+          return faceEntry->face.shared_from_this();
         }
       ++faceEntry;
     }
@@ -366,27 +368,29 @@ WeightedLoadBalancerStrategy::selectOutgoingFace(const Face& inFace,
 }
 
 
-shared_ptr<MyPitInfo>
+MyPitInfo*
 WeightedLoadBalancerStrategy::myGetOrCreateMyPitInfo(const shared_ptr<pit::Entry>& entry)
 {
+  // this is the point
   auto pitEntryInfo = entry->getStrategyInfo<MyPitInfo>();
 
-  if (pitEntryInfo == nullptr)
+  if (pitEntryInfo == NULL)
     {
-      pitEntryInfo = make_shared<MyPitInfo>();
-      entry->setStrategyInfo(pitEntryInfo);
+      //pitEntryInfo = make_shared<MyPitInfo>();
+      pitEntryInfo = entry->insertStrategyInfo<MyPitInfo>().first;
+      //entry->setStrategyInfo(pitEntryInfo);
     }
 
   return pitEntryInfo;
 }
 
-shared_ptr<MyMeasurementInfo>
-WeightedLoadBalancerStrategy::myGetOrCreateMyMeasurementInfo(const shared_ptr<fib::Entry>& entry)
+MyMeasurementInfo*
+WeightedLoadBalancerStrategy::myGetOrCreateMyMeasurementInfo(const fib::Entry& entry)
 {
   BOOST_ASSERT(entry != nullptr);
 
   //this could return null?
-  auto measurementsEntry = getMeasurements().get(*entry);
+  auto measurementsEntry = getMeasurements().get(entry);
 
   BOOST_ASSERT(measurementsEntry != nullptr);
 
@@ -394,8 +398,9 @@ WeightedLoadBalancerStrategy::myGetOrCreateMyMeasurementInfo(const shared_ptr<fi
 
   if (measurementsEntryInfo == nullptr)
     {
-      measurementsEntryInfo = make_shared<MyMeasurementInfo>();
-      measurementsEntry->setStrategyInfo(measurementsEntryInfo);
+      //measurementsEntryInfo = make_shared<MyMeasurementInfo>();
+      //measurementsEntry->setStrategyInfo(measurementsEntryInfo);
+      measurementsEntryInfo = measurementsEntry->insertStrategyInfo<MyMeasurementInfo>().first;
     }
 
   return measurementsEntryInfo;
@@ -417,7 +422,7 @@ WeightedLoadBalancerStrategy::demoteFace(shared_ptr<pit::Entry> pitEntry)
           accessor.extendLifetime(*measurementsEntry, seconds(16));
           for (auto& entry : pitEntry->getOutRecords())
             {
-              measurementsEntryInfo->updateFaceDelay(*(entry.getFace()),
+              measurementsEntryInfo->updateFaceDelay(entry.getFace(),
                                                      milliseconds::max());
             }
         }
@@ -461,7 +466,7 @@ MyMeasurementInfo::updateStoredNextHops(const fib::NextHopList& nexthops)
       BOOST_ASSERT(hop.getFace() != nullptr);
       auto& face = hop.getFace();
 
-      auto weightedIt = facesById.find(face->getId());
+      auto weightedIt = facesById.find(face.getId());
       if (weightedIt == facesById.end())
         {
           updatedFacesById.insert(WeightedFace(face));
