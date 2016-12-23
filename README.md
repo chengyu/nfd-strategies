@@ -13,8 +13,8 @@ scripts to test the strategies.
 Requirements
 ------------
 
-* A recent version of [NFD](https://github.com/named-data/NFD) (tested with 0.3.4). *Note: you will need to install NFD from source.*
-* The corresponding version of [ndn-cxx](https://github.com/named-data/ndn-cxx) (e.g. 0.3.4)
+* A recent version of [NFD](https://github.com/named-data/NFD) (to test with 0.5.0). *Note: you will need to install NFD from source.*
+* The corresponding version of [ndn-cxx](https://github.com/named-data/ndn-cxx) (e.g. 0.5.0)
 * [PyNDN2](https://github.com/named-data/pyndn2) if you wish to use the helper tools.
 
 
